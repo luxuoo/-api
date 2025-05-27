@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMI 和体脂率计算器 (集成 Gemini)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .tab-button {
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .tab-button.active {
+            background-color: #3b82f6; /* Blue-600 */
+            color: white;
+            border-bottom: 2px solid #1d4ed8; /* Darker blue for active tab underline */
+        }
+        .tab-button:not(.active):hover {
+            background-color: #e0e7ff; /* Indigo-100 for hover */
+        }
+        .calculator-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            margin-top: 1.5rem;
+        }
+        .input-field {
+            border-radius: 8px;
+            border: 1px solid #d1d5db; /* Gray-300 */
+            padding: 0.75rem 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6; /* Blue-500 */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .calculate-button, .gemini-button {
+            background-color: #2563eb; /* Blue-600 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+        .calculate-button:hover, .gemini-button:hover {
+            background-color: #1d4ed8; /* Blue-700 */
+        }
+        .gemini-button {
+            background-color: #10b981; /* Emerald-500 */
+            margin-top: 1rem;
+        }
+        .gemini-button:hover {
+            background-color: #059669; /* Emerald-600 */
+        }
+        .result-display {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background-color: #eef2ff; /* Indigo-50 */
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6; /* Blue-500 */
+        }
+        .result-display h3 {
+            color: #1e3a8a; /* Blue-800 */
+        }
+        .gemini-advice {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background-color: #f0fdf4; /* Green-50 */
+            border-radius: 8px;
+            border-left: 4px solid #10b981; /* Emerald-500 */
+            /* white-space: pre-wrap; REMOVED for better HTML list rendering */
+        }
+        .gemini-advice h4 {
+            color: #065f46; /* Green-800 */
+            margin-bottom: 0.75rem;
+        }
+        .gemini-advice ul {
+            list-style-type: disc;
+            padding-left: 1.5rem; /* Indentation for list items */
+            margin-top: 0.5rem;
+        }
+        .gemini-advice li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .gemini-advice strong {
+            font-weight: 600;
+            color: #047857; /* Emerald-700 for emphasis */
+        }
+        .error-message {
+            color: #dc2626; /* Red-600 */
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #10b981; /* Emerald-500 */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0.5rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+    <div class="container mx-auto p-4 md:p-8 max-w-2xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-700">健康指标计算器 (集成 Gemini)</h1>
+            <p class="text-gray-600 mt-2">计算您的 BMI 和体脂率，并通过 Gemini 获取个性化健康建议。</p>
+        </header>
+
+        <div class="flex border-b border-gray-300 mb-6 rounded-lg overflow-hidden shadow-sm">
+            <button id="bmiTabButton" class="tab-button flex-1 py-3 px-4 font-medium text-gray-700 focus:outline-none active">BMI 计算器</button>
+            <button id="bfpTabButton" class="tab-button flex-1 py-3 px-4 font-medium text-gray-700 focus:outline-none">体脂率计算器</button>
+        </div>
+
+        <div id="bmiCalculator" class="calculator-card">
+            <h2 class="text-2xl font-semibold text-blue-600 mb-6">BMI (身体质量指数)</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="bmiHeight" class="block text-sm font-medium text-gray-700 mb-1">身高 (cm)</label>
+                    <input type="number" id="bmiHeight" class="input-field w-full" placeholder="例如: 175">
+                    <p id="bmiHeightError" class="error-message"></p>
+                </div>
+                <div>
+                    <label for="bmiWeight" class="block text-sm font-medium text-gray-700 mb-1">体重 (kg)</label>
+                    <input type="number" id="bmiWeight" class="input-field w-full" placeholder="例如: 70">
+                    <p id="bmiWeightError" class="error-message"></p>
+                </div>
+                <button id="calculateBmi" class="calculate-button w-full">计算 BMI</button>
+            </div>
+            <div id="bmiResult" class="result-display hidden">
+                <h3 class="text-xl font-semibold mb-2">您的 BMI 结果:</h3>
+                <p id="bmiValue" class="text-2xl font-bold"></p>
+                <p id="bmiCategory" class="mt-1"></p>
+                <div class="mt-3 text-sm text-gray-600">
+                    <p><strong>BMI 分类标准 (中国标准):</strong></p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>偏瘦: BMI &lt; 18.5</li>
+                        <li>正常: 18.5 ≤ BMI &lt; 24.0</li>
+                        <li>超重: 24.0 ≤ BMI &lt; 28.0</li>
+                        <li>肥胖: BMI ≥ 28.0</li>
+                    </ul>
+                </div>
+                <button id="getBmiAdvice" class="gemini-button w-full">获取 Gemini 健康建议</button>
+                <div id="bmiGeminiLoader" class="loading-spinner hidden"></div>
+                <div id="bmiGeminiAdvice" class="gemini-advice hidden">
+                    <h4 class="text-lg font-semibold">Gemini 健康建议:</h4>
+                    <div id="bmiGeminiAdviceText"></div> {/* Changed from p to div for better list rendering */}
+                    <p class="mt-3 text-xs text-gray-500">*Gemini 提供的建议仅供参考，不能替代专业医疗意见。</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="bfpCalculator" class="calculator-card hidden">
+            <h2 class="text-2xl font-semibold text-blue-600 mb-6">体脂率 (BFP)</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="bfpGender" class="block text-sm font-medium text-gray-700 mb-1">性别</label>
+                    <select id="bfpGender" class="input-field w-full">
+                        <option value="male">男性</option>
+                        <option value="female">女性</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="bfpAge" class="block text-sm font-medium text-gray-700 mb-1">年龄 (岁)</label>
+                    <input type="number" id="bfpAge" class="input-field w-full" placeholder="例如: 30">
+                    <p id="bfpAgeError" class="error-message"></p>
+                </div>
+                <div>
+                    <label for="bfpHeight" class="block text-sm font-medium text-gray-700 mb-1">身高 (cm)</label>
+                    <input type="number" id="bfpHeight" class="input-field w-full" placeholder="例如: 175">
+                    <p id="bfpHeightError" class="error-message"></p>
+                </div>
+                <div>
+                    <label for="bfpWeight" class="block text-sm font-medium text-gray-700 mb-1">体重 (kg)</label>
+                    <input type="number" id="bfpWeight" class="input-field w-full" placeholder="例如: 70">
+                    <p id="bfpWeightError" class="error-message"></p>
+                </div>
+                <div>
+                    <label for="bfpNeck" class="block text-sm font-medium text-gray-700 mb-1">颈围 (cm)</label>
+                    <input type="number" id="bfpNeck" class="input-field w-full" placeholder="例如: 38">
+                    <p id="bfpNeckError" class="error-message"></p>
+                </div>
+                <div>
+                    <label for="bfpWaist" class="block text-sm font-medium text-gray-700 mb-1">腰围 (cm)</label>
+                    <input type="number" id="bfpWaist" class="input-field w-full" placeholder="例如: 85">
+                    <p id="bfpWaistError" class="error-message"></p>
+                </div>
+                <div id="bfpHipContainer" class="hidden">
+                    <label for="bfpHip" class="block text-sm font-medium text-gray-700 mb-1">臀围 (cm) (女性)</label>
+                    <input type="number" id="bfpHip" class="input-field w-full" placeholder="例如: 95">
+                    <p id="bfpHipError" class="error-message"></p>
+                </div>
+                <button id="calculateBfp" class="calculate-button w-full">计算体脂率</button>
+            </div>
+            <div id="bfpResult" class="result-display hidden">
+                <h3 class="text-xl font-semibold mb-2">您的体脂率估算:</h3>
+                <p id="bfpValue" class="text-2xl font-bold"></p>
+                <p id="bfpCategory" class="mt-1"></p>
+                 <div class="mt-3 text-sm text-gray-600">
+                    <p><strong>体脂率参考范围:</strong></p>
+                    <p>男性:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>必需脂肪: 2-5%</li><li>运动员: 6-13%</li><li>健康: 14-17%</li><li>可接受: 18-24%</li><li>肥胖: &gt;25%</li>
+                    </ul>
+                    <p class="mt-2">女性:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>必需脂肪: 10-13%</li><li>运动员: 14-20%</li><li>健康: 21-24%</li><li>可接受: 25-31%</li><li>肥胖: &gt;32%</li>
+                    </ul>
+                    <p class="mt-2 text-xs">*体脂率计算公式有多种，此为基于美国海军公式的估算，结果仅供参考。</p>
+                </div>
+                <button id="getBfpAdvice" class="gemini-button w-full">获取 Gemini 健康建议</button>
+                <div id="bfpGeminiLoader" class="loading-spinner hidden"></div>
+                <div id="bfpGeminiAdvice" class="gemini-advice hidden">
+                    <h4 class="text-lg font-semibold">Gemini 健康建议:</h4>
+                    <div id="bfpGeminiAdviceText"></div> {/* Changed from p to div for better list rendering */}
+                    <p class="mt-3 text-xs text-gray-500">*Gemini 提供的建议仅供参考，不能替代专业医疗意见。</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden px-4 z-50">
+            <div class="bg-white p-6 md:p-8 rounded-lg shadow-xl w-full max-w-md">
+                <h3 id="modalTitle" class="text-xl font-semibold mb-4 text-gray-800">提示</h3>
+                <p id="modalMessage" class="text-gray-700 mb-6"></p>
+                <button id="closeModalButton" class="calculate-button w-full">知道了</button>
+            </div>
+        </div>
+
+        <footer class="text-center mt-12 text-sm text-gray-500">
+            <p>&copy; <span id="currentYear"></span> 健康指标计算器. 结果和建议仅供参考，不能替代专业医疗建议。</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM Elements
+        const bmiTabButton = document.getElementById('bmiTabButton');
+        const bfpTabButton = document.getElementById('bfpTabButton');
+        const bmiCalculatorDiv = document.getElementById('bmiCalculator');
+        const bfpCalculatorDiv = document.getElementById('bfpCalculator');
+
+        const bmiHeightInput = document.getElementById('bmiHeight');
+        const bmiWeightInput = document.getElementById('bmiWeight');
+        const calculateBmiButton = document.getElementById('calculateBmi');
+        const bmiResultDiv = document.getElementById('bmiResult');
+        const bmiValueP = document.getElementById('bmiValue');
+        const bmiCategoryP = document.getElementById('bmiCategory');
+        const getBmiAdviceButton = document.getElementById('getBmiAdvice');
+        const bmiGeminiLoader = document.getElementById('bmiGeminiLoader');
+        const bmiGeminiAdviceDiv = document.getElementById('bmiGeminiAdvice');
+        const bmiGeminiAdviceTextContainer = document.getElementById('bmiGeminiAdviceText'); // Now a div
+
+        const bfpGenderSelect = document.getElementById('bfpGender');
+        const bfpAgeInput = document.getElementById('bfpAge');
+        const bfpHeightInput = document.getElementById('bfpHeight');
+        const bfpWeightInput = document.getElementById('bfpWeight');
+        const bfpNeckInput = document.getElementById('bfpNeck');
+        const bfpWaistInput = document.getElementById('bfpWaist');
+        const bfpHipContainer = document.getElementById('bfpHipContainer');
+        const bfpHipInput = document.getElementById('bfpHip');
+        const calculateBfpButton = document.getElementById('calculateBfp');
+        const bfpResultDiv = document.getElementById('bfpResult');
+        const bfpValueP = document.getElementById('bfpValue');
+        const bfpCategoryP = document.getElementById('bfpCategory');
+        const getBfpAdviceButton = document.getElementById('getBfpAdvice');
+        const bfpGeminiLoader = document.getElementById('bfpGeminiLoader');
+        const bfpGeminiAdviceDiv = document.getElementById('bfpGeminiAdvice');
+        const bfpGeminiAdviceTextContainer = document.getElementById('bfpGeminiAdviceText'); // Now a div
+        
+        const messageModal = document.getElementById('messageModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const closeModalButton = document.getElementById('closeModalButton');
+
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        let currentBmiValue = null;
+        let currentBmiCategory = '';
+        let currentBfpValue = null;
+        let currentBfpCategory = '';
+        let currentGender = '';
+        let currentAge = null;
+
+        function showError(elementId, message) {
+            const errorElement = document.getElementById(elementId + "Error");
+            if (errorElement) errorElement.textContent = message;
+            const inputElement = document.getElementById(elementId);
+            if (inputElement) inputElement.classList.add('border-red-500');
+        }
+
+        function clearError(elementId) {
+            const errorElement = document.getElementById(elementId + "Error");
+            if (errorElement) errorElement.textContent = "";
+            const inputElement = document.getElementById(elementId);
+            if (inputElement) inputElement.classList.remove('border-red-500');
+        }
+        
+        function clearAllErrors(fields) { fields.forEach(field => clearError(field)); }
+
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            messageModal.classList.remove('hidden');
+        }
+
+        closeModalButton.addEventListener('click', () => messageModal.classList.add('hidden'));
+
+        bmiTabButton.addEventListener('click', () => {
+            bmiCalculatorDiv.classList.remove('hidden');
+            bfpCalculatorDiv.classList.add('hidden');
+            bmiTabButton.classList.add('active');
+            bfpTabButton.classList.remove('active');
+            bmiGeminiAdviceDiv.classList.add('hidden');
+            bmiGeminiLoader.classList.add('hidden');
+        });
+
+        bfpTabButton.addEventListener('click', () => {
+            bmiCalculatorDiv.classList.add('hidden');
+            bfpCalculatorDiv.classList.remove('hidden');
+            bmiTabButton.classList.remove('active');
+            bfpTabButton.classList.add('active');
+            bfpGenderSelect.dispatchEvent(new Event('change'));
+            bfpGeminiAdviceDiv.classList.add('hidden');
+            bfpGeminiLoader.classList.add('hidden');
+        });
+
+        bfpGenderSelect.addEventListener('change', () => {
+            bfpHipContainer.classList.toggle('hidden', bfpGenderSelect.value !== 'female');
+        });
+
+        calculateBmiButton.addEventListener('click', () => {
+            clearAllErrors(['bmiHeight', 'bmiWeight']);
+            bmiResultDiv.classList.add('hidden');
+            bmiGeminiAdviceDiv.classList.add('hidden');
+            bmiGeminiLoader.classList.add('hidden');
+
+            const height = parseFloat(bmiHeightInput.value);
+            const weight = parseFloat(bmiWeightInput.value);
+            let isValid = true;
+
+            if (isNaN(height) || height <= 0 || height > 300) { showError('bmiHeight', '请输入有效的身高 (大于0cm, 小于300cm)。'); isValid = false; }
+            if (isNaN(weight) || weight <= 0 || weight > 500) { showError('bmiWeight', '请输入有效的体重 (大于0kg, 小于500kg)。'); isValid = false; }
+
+            if (!isValid) return;
+
+            const bmi = weight / ((height / 100) ** 2);
+            currentBmiValue = bmi.toFixed(1);
+            bmiValueP.textContent = currentBmiValue;
+
+            if (bmi < 18.5) currentBmiCategory = '偏瘦';
+            else if (bmi < 24) currentBmiCategory = '正常';
+            else if (bmi < 28) currentBmiCategory = '超重';
+            else currentBmiCategory = '肥胖';
+            
+            let categoryColor = 'text-gray-700';
+            if (currentBmiCategory === '偏瘦') categoryColor = 'text-blue-600';
+            else if (currentBmiCategory === '正常') categoryColor = 'text-green-600';
+            else if (currentBmiCategory === '超重') categoryColor = 'text-yellow-600';
+            else categoryColor = 'text-red-600';
+            
+            bmiCategoryP.textContent = `分类: ${currentBmiCategory}`;
+            bmiCategoryP.className = `mt-1 font-medium ${categoryColor}`;
+            bmiResultDiv.classList.remove('hidden');
+        });
+
+        calculateBfpButton.addEventListener('click', () => {
+            const fieldsToClear = ['bfpAge', 'bfpHeight', 'bfpWeight', 'bfpNeck', 'bfpWaist'];
+            if (bfpGenderSelect.value === 'female') fieldsToClear.push('bfpHip');
+            clearAllErrors(fieldsToClear);
+            bfpResultDiv.classList.add('hidden');
+            bfpGeminiAdviceDiv.classList.add('hidden');
+            bfpGeminiLoader.classList.add('hidden');
+
+            currentGender = bfpGenderSelect.value;
+            currentAge = parseInt(bfpAgeInput.value);
+            const height = parseFloat(bfpHeightInput.value);
+            const weight = parseFloat(bfpWeightInput.value);
+            const neck = parseFloat(bfpNeckInput.value);
+            const waist = parseFloat(bfpWaistInput.value);
+            const hip = currentGender === 'female' ? parseFloat(bfpHipInput.value) : 0;
+            let isValid = true;
+
+            if (isNaN(currentAge) || currentAge <= 0 || currentAge > 120) { showError('bfpAge', '请输入有效的年龄。'); isValid = false; }
+            if (isNaN(height) || height <= 50 || height > 300) { showError('bfpHeight', '请输入有效的身高 (50-300cm)。'); isValid = false; }
+            if (isNaN(weight) || weight <= 10 || weight > 500) { showError('bfpWeight', '请输入有效的体重 (10-500kg)。'); isValid = false; }
+            if (isNaN(neck) || neck <= 10 || neck > 100) { showError('bfpNeck', '请输入有效的颈围 (10-100cm)。'); isValid = false; }
+            if (isNaN(waist) || waist <= 30 || waist > 300) { showError('bfpWaist', '请输入有效的腰围 (30-300cm)。'); isValid = false; }
+            if (currentGender === 'female' && (isNaN(hip) || hip <= 30 || hip > 300)) { showError('bfpHip', '请输入有效的臀围 (30-300cm)。'); isValid = false; }
+            if (waist >= height) { showError('bfpWaist', '腰围不能大于或等于身高。'); isValid = false; }
+            if (neck >= height) { showError('bfpNeck', '颈围不能大于或等于身高。'); isValid = false; }
+            if (currentGender === 'female' && hip >= height) { showError('bfpHip', '臀围不能大于或等于身高。'); isValid = false; }
+            
+            if (!isValid) return;
+
+            let bfp = 0;
+            if (currentGender === 'male') {
+                if (waist - neck <= 0) { showModal('计算错误', '腰围必须大于颈围才能进行估算。'); return; }
+                bfp = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+            } else {
+                if (waist + hip - neck <= 0) { showModal('计算错误', '腰围加臀围之和必须大于颈围。'); return; }
+                bfp = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
+            }
+
+            if (isNaN(bfp) || bfp < 0 || bfp > 70) {
+                showModal('计算错误', '无法根据输入值计算出有效的体脂率。请检查测量数据。');
+                bfpResultDiv.classList.add('hidden'); return;
+            }
+
+            currentBfpValue = bfp.toFixed(1);
+            bfpValueP.textContent = `${currentBfpValue}%`;
+
+            if (currentGender === 'male') {
+                if (bfp < 2) currentBfpCategory = '过低 (危险)';
+                else if (bfp <= 5) currentBfpCategory = '必需脂肪';
+                else if (bfp <= 13) currentBfpCategory = '运动员水平';
+                else if (bfp <= 17) currentBfpCategory = '健康';
+                else if (bfp <= 24) currentBfpCategory = '可接受';
+                else currentBfpCategory = '肥胖';
+            } else {
+                if (bfp < 10) currentBfpCategory = '过低 (危险)';
+                else if (bfp <= 13) currentBfpCategory = '必需脂肪';
+                else if (bfp <= 20) currentBfpCategory = '运动员水平';
+                else if (bfp <= 24) currentBfpCategory = '健康';
+                else if (bfp <= 31) currentBfpCategory = '可接受';
+                else currentBfpCategory = '肥胖';
+            }
+            
+            let categoryColor = 'text-gray-700';
+            if (currentBfpCategory.includes('危险') || currentBfpCategory.includes('肥胖')) categoryColor = 'text-red-600';
+            else if (currentBfpCategory.includes('运动员') || currentBfpCategory.includes('健康')) categoryColor = 'text-green-600';
+            else if (currentBfpCategory.includes('可接受') || currentBfpCategory.includes('必需脂肪')) categoryColor = 'text-yellow-600';
+
+            bfpCategoryP.textContent = `分类: ${currentBfpCategory}`;
+            bfpCategoryP.className = `mt-1 font-medium ${categoryColor}`;
+            bfpResultDiv.classList.remove('hidden');
+        });
+
+        function parseGeminiResponseToHtml(text) {
+            // Replace **text** with <strong>text</strong>
+            let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Split into lines
+            const lines = html.split('\n');
+            let listHtml = '<ul>';
+            let inList = false;
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('* ') || line.startsWith('- ')) {
+                    listHtml += `<li>${line.substring(2).trim()}</li>`;
+                    inList = true;
+                } else if (line) { // If it's a non-empty line not starting with a list marker
+                    if (inList) { // If we were in a list, append to the last li or start a new one if it makes sense
+                         // For simplicity, if it's not a list item, treat as plain text paragraph after list
+                        // or if it's a continuation of a point, it should ideally be part of the previous li.
+                        // This basic parser will treat non-list items as separate paragraphs if they appear after list.
+                        // A more sophisticated parser might be needed for complex nested structures.
+                        // For now, if it's not a list item, and we were in a list, close the list.
+                        listHtml += '</ul>';
+                        inList = false;
+                        listHtml += `<p>${line}</p>`; // Add as a paragraph
+                    } else {
+                         listHtml += `<p>${line}</p>`; // Add as a paragraph if not in list context
+                    }
+                }
+            });
+            if (inList) {
+                listHtml += '</ul>';
+            }
+            // If the entire response was just paragraphs without list items
+            if (!listHtml.includes('<li>') && html.length > 0 && !html.trim().startsWith('<ul>')) {
+                return `<p>${html.replace(/\n/g, '<br>')}</p>`; // Return as paragraphs with line breaks
+            }
+            
+            return listHtml;
+        }
+
+        async function getGeminiAdvice(type) {
+            let prompt = "";
+            let loaderElement, adviceTextContainer, adviceDivElement;
+
+            if (type === 'bmi') {
+                if (currentBmiValue === null || currentBmiCategory === '') { showModal('提示', '请先计算您的 BMI。'); return; }
+                prompt = `我的 BMI 是 ${currentBmiValue}，分类为 "${currentBmiCategory}"。请根据这些信息，用简体中文提供一些通用的健康生活建议和后续可以考虑的行动。请将主要建议点作为项目列表返回，每个项目以"-"或"*"开头。对于需要强调的词语，请使用双星号包裹，例如 **重要提示**。最后，请务必提醒这些建议仅供参考，不能替代专业医疗意见。`;
+                loaderElement = bmiGeminiLoader;
+                adviceTextContainer = bmiGeminiAdviceTextContainer;
+                adviceDivElement = bmiGeminiAdviceDiv;
+            } else if (type === 'bfp') {
+                 if (currentBfpValue === null || currentBfpCategory === '' || currentGender === '' || currentAge === null) { showModal('提示', '请先计算您的体脂率。'); return; }
+                const genderText = currentGender === 'male' ? '男性' : '女性';
+                prompt = `我的性别是 ${genderText}，年龄 ${currentAge} 岁，体脂率估算为 ${currentBfpValue}%，分类为 "${currentBfpCategory}"。请根据这些信息，用简体中文提供一些通用的健康生活建议和后续可以考虑的行动。请将主要建议点作为项目列表返回，每个项目以"-"或"*"开头。对于需要强调的词语，请使用双星号包裹，例如 **重要提示**。最后，请务必提醒这些建议仅供参考，不能替代专业医疗意见。`;
+                loaderElement = bfpGeminiLoader;
+                adviceTextContainer = bfpGeminiAdviceTextContainer;
+                adviceDivElement = bfpGeminiAdviceDiv;
+            } else { return; }
+
+            loaderElement.classList.remove('hidden');
+            adviceDivElement.classList.add('hidden');
+            adviceTextContainer.innerHTML = ''; // Clear previous content
+
+            try {
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                const apiKey = ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Gemini API 请求失败: ${response.status} ${errorData?.error?.message || ''}`);
+                }
+                const result = await response.json();
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+                    const rawText = result.candidates[0].content.parts[0].text;
+                    adviceTextContainer.innerHTML = parseGeminiResponseToHtml(rawText);
+                    adviceDivElement.classList.remove('hidden');
+                } else {
+                    throw new Error('未能从 Gemini 获取有效建议，响应格式不正确。');
+                }
+            } catch (error) {
+                console.error("获取 Gemini 建议时出错:", error);
+                adviceTextContainer.innerHTML = `<p class="text-red-600">获取建议失败: ${error.message} 请稍后再试。</p>`;
+                adviceDivElement.classList.remove('hidden');
+                showModal('Gemini 建议错误', `获取建议时发生错误: ${error.message}。`);
+            } finally {
+                loaderElement.classList.add('hidden');
+            }
+        }
+
+        getBmiAdviceButton.addEventListener('click', () => getGeminiAdvice('bmi'));
+        getBfpAdviceButton.addEventListener('click', () => getGeminiAdvice('bfp'));
+
+        bmiTabButton.click();
+    </script>
+</body>
+</html>
