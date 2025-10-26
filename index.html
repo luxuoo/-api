@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMI 在线测试</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="hero">
+        <div class="hero__content">
+            <h1>BMI 在线测试</h1>
+            <p>Body Mass Index（身体质量指数）是衡量体重与身高比例的常用指标。输入你的数据，了解当前体重状况，并获得专属健康建议。</p>
+            <a href="#calculator" class="hero__cta">立即开始测试</a>
+        </div>
+    </header>
+
+    <main>
+        <section id="calculator" class="card">
+            <h2>填写个人信息</h2>
+            <p class="section__intro">我们支持公制和英制单位，所有计算均在本地完成，不会上传你的任何数据。</p>
+
+            <form id="bmi-form">
+                <div class="form__row">
+                    <label for="name">昵称（可选）</label>
+                    <input type="text" id="name" name="name" placeholder="例如：小明" maxlength="20">
+                </div>
+
+                <fieldset class="form__row">
+                    <legend>选择计量单位</legend>
+                    <label class="radio">
+                        <input type="radio" name="unit" value="metric" checked>
+                        <span>公制（厘米 / 千克）</span>
+                    </label>
+                    <label class="radio">
+                        <input type="radio" name="unit" value="imperial">
+                        <span>英制（英尺 / 英寸 / 磅）</span>
+                    </label>
+                </fieldset>
+
+                <div class="form__row" data-unit="metric">
+                    <label for="height">身高（cm）<span class="required">*</span></label>
+                    <input type="number" id="height" name="height" min="80" max="250" step="0.1" placeholder="例如：170" required>
+                </div>
+                <div class="form__row" data-unit="metric">
+                    <label for="weight">体重（kg）<span class="required">*</span></label>
+                    <input type="number" id="weight" name="weight" min="20" max="300" step="0.1" placeholder="例如：65" required>
+                </div>
+
+                <div class="form__row form__row--inline" data-unit="imperial" hidden>
+                    <div>
+                        <label for="height-feet">身高英尺（ft）<span class="required">*</span></label>
+                        <input type="number" id="height-feet" name="heightFeet" min="3" max="8" step="1" placeholder="例如：5">
+                    </div>
+                    <div>
+                        <label for="height-inches">身高英寸（in）<span class="required">*</span></label>
+                        <input type="number" id="height-inches" name="heightInches" min="0" max="11" step="0.1" placeholder="例如：6">
+                    </div>
+                </div>
+                <div class="form__row" data-unit="imperial" hidden>
+                    <label for="weight-lbs">体重（lb）<span class="required">*</span></label>
+                    <input type="number" id="weight-lbs" name="weightLbs" min="44" max="660" step="0.1" placeholder="例如：150">
+                </div>
+
+                <div class="form__row form__row--inline">
+                    <div>
+                        <label for="age">年龄</label>
+                        <input type="number" id="age" name="age" min="5" max="100" step="1" placeholder="例如：28">
+                    </div>
+                    <div>
+                        <label for="gender">性别</label>
+                        <select id="gender" name="gender">
+                            <option value="">保密</option>
+                            <option value="female">女性</option>
+                            <option value="male">男性</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form__actions">
+                    <button type="submit" class="btn btn--primary">计算 BMI</button>
+                    <button type="reset" class="btn btn--ghost" id="reset-btn">重置</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card" id="result-section">
+            <h2>测试结果</h2>
+            <div id="result-placeholder" class="result result--placeholder">
+                <p>填写信息并点击“计算 BMI”按钮，即可在此查看结果。</p>
+            </div>
+            <div id="result" class="result" hidden>
+                <div class="result__header">
+                    <h3 id="result-title"></h3>
+                    <p id="result-subtitle"></p>
+                </div>
+                <div class="result__value">
+                    <span class="result__label">BMI</span>
+                    <span class="result__number" id="result-bmi"></span>
+                </div>
+                <div class="result__progress">
+                    <div class="result__progress-bar">
+                        <div class="result__progress-fill" id="result-progress"></div>
+                    </div>
+                    <div class="result__progress-scale">
+                        <span>偏瘦</span>
+                        <span>正常</span>
+                        <span>超重</span>
+                        <span>肥胖</span>
+                    </div>
+                </div>
+                <div class="result__details">
+                    <div>
+                        <h4>健康建议</h4>
+                        <p id="result-advice"></p>
+                    </div>
+                    <div>
+                        <h4>理想体重区间</h4>
+                        <p id="result-ideal"></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" id="history-section">
+            <h2>最近的测试记录</h2>
+            <p class="section__intro">以下数据保存在浏览器本地，只对你自己可见，点击可快速回填。</p>
+            <div id="history-empty" class="history history--empty">
+                <p>暂无记录。</p>
+            </div>
+            <ul id="history-list" class="history" hidden></ul>
+        </section>
+
+        <section class="card" id="bmi-info">
+            <h2>BMI 分类表</h2>
+            <div class="table">
+                <div class="table__row table__row--head">
+                    <span>分类</span>
+                    <span>BMI 范围</span>
+                    <span>健康提示</span>
+                </div>
+                <div class="table__row">
+                    <span>偏瘦</span>
+                    <span>&lt; 18.5</span>
+                    <span>注意补充营养，合理增加体重。</span>
+                </div>
+                <div class="table__row">
+                    <span>正常</span>
+                    <span>18.5 - 23.9</span>
+                    <span>保持良好生活习惯，均衡饮食与运动。</span>
+                </div>
+                <div class="table__row">
+                    <span>超重</span>
+                    <span>24 - 27.9</span>
+                    <span>适当控制饮食，增加有氧运动。</span>
+                </div>
+                <div class="table__row">
+                    <span>肥胖</span>
+                    <span>&ge; 28</span>
+                    <span>建议咨询专业人士，制定减重计划。</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="card card--tips">
+            <h2>如何科学使用 BMI？</h2>
+            <ul class="tips">
+                <li><strong>BMI 仅提供参考</strong> —— 它不能区分肌肉与脂肪比例，运动员可能会显示偏高。</li>
+                <li><strong>结合其他指标</strong> —— 如体脂率、腰围、血压等，更能全面评估健康状况。</li>
+                <li><strong>保持规律生活</strong> —— 良好的饮食结构与运动习惯，远比单次 BMI 值更重要。</li>
+                <li><strong>特殊人群需谨慎</strong> —— 儿童、孕妇、老年人等应咨询专业医生获得更准确建议。</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>© <span id="year"></span> BMI 在线测试工具。祝你健康！</p>
+    </footer>
+
+    <script src="assets/js/main.js" defer></script>
+</body>
+</html>
