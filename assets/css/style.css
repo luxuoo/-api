@@ -296,6 +296,26 @@ input[type="number"]::-webkit-inner-spin-button {
     border: 1px solid rgba(79, 70, 229, 0.08);
 }
 
+.calorie-list {
+    list-style: none;
+    margin: 12px 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    color: var(--text);
+}
+
+.calorie-list strong {
+    color: var(--primary);
+}
+
+.calorie-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
 .history {
     list-style: none;
     margin: 0;
@@ -310,6 +330,12 @@ input[type="number"]::-webkit-inner-spin-button {
     border: 2px dashed rgba(15, 23, 42, 0.08);
     border-radius: 16px;
     padding: 40px 24px;
+}
+
+.history__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
 }
 
 .history__item {
