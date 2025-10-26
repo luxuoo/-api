@@ -121,6 +121,16 @@
                         <h4>理想体重区间</h4>
                         <p id="result-ideal"></p>
                     </div>
+                    <div id="metabolism-block" hidden>
+                        <h4>每日热量建议</h4>
+                        <p id="result-bmr"></p>
+                        <ul class="calorie-list">
+                            <li><strong>维持体重：</strong><span id="result-cal-maintain"></span></li>
+                            <li><strong>轻度减脂：</strong><span id="result-cal-loss"></span></li>
+                            <li><strong>健康增重：</strong><span id="result-cal-gain"></span></li>
+                        </ul>
+                        <p class="calorie-note" id="result-calorie-note"></p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -128,6 +138,9 @@
         <section class="card" id="history-section">
             <h2>最近的测试记录</h2>
             <p class="section__intro">以下数据保存在浏览器本地，只对你自己可见，点击可快速回填。</p>
+            <div class="history__actions" hidden>
+                <button type="button" class="btn btn--ghost" id="clear-history" hidden>清除所有记录</button>
+            </div>
             <div id="history-empty" class="history history--empty">
                 <p>暂无记录。</p>
             </div>
