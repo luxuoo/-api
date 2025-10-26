@@ -7,10 +7,18 @@ const resultBmi = document.getElementById('result-bmi');
 const resultAdvice = document.getElementById('result-advice');
 const resultIdeal = document.getElementById('result-ideal');
 const progressFill = document.getElementById('result-progress');
+const metabolismBlock = document.getElementById('metabolism-block');
+const resultBmr = document.getElementById('result-bmr');
+const resultCalMaintain = document.getElementById('result-cal-maintain');
+const resultCalLoss = document.getElementById('result-cal-loss');
+const resultCalGain = document.getElementById('result-cal-gain');
+const resultCalorieNote = document.getElementById('result-calorie-note');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
+const historyActions = document.querySelector('.history__actions');
 const yearEl = document.getElementById('year');
 const resetBtn = document.getElementById('reset-btn');
+const clearHistoryBtn = document.getElementById('clear-history');
 
 const STORAGE_KEY = 'bmi-history';
 const MAX_HISTORY = 8;
@@ -28,6 +36,11 @@ const imperialFields = document.querySelectorAll('[data-unit="imperial"]');
 
 const parseFloatSafe = (value) => {
     const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseIntSafe = (value) => {
+    const parsed = parseInt(value, 10);
     return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -80,6 +93,39 @@ function getIdealWeightRange(heightCm) {
     return [min, max];
 }
 
+function calculateBmr(heightCm, weightKg, age, gender) {
+    if (
+        !Number.isFinite(heightCm)
+        || !Number.isFinite(weightKg)
+        || !Number.isFinite(age)
+        || age <= 0
+    ) {
+        return null;
+    }
+
+    if (gender !== 'male' && gender !== 'female') {
+        return null;
+    }
+
+    const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
+    return gender === 'male' ? base + 5 : base - 161;
+}
+
+function getCalorieTargets(bmr) {
+    if (!Number.isFinite(bmr)) return null;
+
+    const maintain = Math.round(bmr * 1.2);
+    return {
+        maintain,
+        loss: Math.max(0, Math.round(maintain - 300)),
+        gain: Math.max(0, Math.round(maintain + 300)),
+    };
+}
+
+function formatCalories(value) {
+    return `${value} kcal`;
+}
+
 function formatNumber(num) {
     return Number(num).toFixed(1);
 }
@@ -113,6 +159,28 @@ function setResult({
     const progressPercent = Math.min(100, Math.max(0, (bmi / 35) * 100));
     progressFill.style.width = `${progressPercent}%`;
 
+    const ageNumber = parseIntSafe(age);
+    const bmr = calculateBmr(heightCm, weightKg, ageNumber, gender);
+    const calorieTargets = getCalorieTargets(bmr);
+
+    if (Number.isFinite(bmr) && calorieTargets) {
+        resultBmr.textContent = `基础代谢率约为 ${Math.round(bmr)} kcal / 天`;
+        resultCalMaintain.textContent = formatCalories(calorieTargets.maintain);
+        resultCalLoss.textContent = formatCalories(calorieTargets.loss);
+        resultCalGain.textContent = formatCalories(calorieTargets.gain);
+        resultCalorieNote.textContent = '基于久坐生活方式估算，实际需求会受到运动量与身体状况影响。';
+    } else {
+        resultBmr.textContent = '填写年龄与性别即可获得基础代谢率和热量建议。';
+        resultCalMaintain.textContent = '—';
+        resultCalLoss.textContent = '—';
+        resultCalGain.textContent = '—';
+        resultCalorieNote.textContent = '我们建议补充完整信息后再进行个性化热量评估。';
+    }
+
+    if (metabolismBlock) {
+        metabolismBlock.hidden = false;
+    }
+
     resultPlaceholder.hidden = true;
     resultCard.hidden = false;
 }
@@ -144,21 +212,41 @@ function renderHistory() {
         historyEmpty.hidden = false;
         historyList.hidden = true;
         historyList.innerHTML = '';
+        if (clearHistoryBtn) {
+            clearHistoryBtn.hidden = true;
+        }
+        if (historyActions) {
+            historyActions.hidden = true;
+        }
         return;
     }
 
     historyEmpty.hidden = true;
     historyList.hidden = false;
     historyList.innerHTML = '';
+    if (clearHistoryBtn) {
+        clearHistoryBtn.hidden = false;
+    }
+    if (historyActions) {
+        historyActions.hidden = false;
+    }
 
     history.forEach((item, index) => {
         const li = document.createElement('li');
         li.className = 'history__item';
         li.dataset.index = index;
+
+        const ageNumber = parseIntSafe(item.age);
+        const bmr = calculateBmr(item.heightCm, item.weightKg, ageNumber, item.gender);
+        const metaPieces = [item.timestamp];
+        if (Number.isFinite(bmr)) {
+            metaPieces.push(`基础代谢 ${Math.round(bmr)} kcal`);
+        }
+
         li.innerHTML = `
             <div>
                 <div><strong>${item.name || '匿名用户'}</strong> · BMI ${formatNumber(item.bmi)} (${item.category})</div>
-                <div class="history__meta">${item.timestamp}</div>
+                <div class="history__meta">${metaPieces.join(' · ')}</div>
             </div>
             <div>${formatNumber(item.weightKg)} kg · ${Math.round(item.heightCm)} cm</div>
         `;
@@ -281,6 +369,13 @@ resetBtn.addEventListener('click', () => {
     resultPlaceholder.innerHTML = '<p>填写信息并点击“计算 BMI”按钮，即可在此查看结果。</p>';
     resultCard.hidden = true;
 });
+
+if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY);
+        renderHistory();
+    });
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     yearEl.textContent = new Date().getFullYear();
